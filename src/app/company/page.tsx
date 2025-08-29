@@ -3,6 +3,9 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
+import CreateFarmModal from '@/components/modals/CreateFarmModal'
+import CreateCompanyUserModalV2 from '@/components/modals/CreateCompanyUserModalV2'
+import CreatePlotModal from '@/components/modals/CreatePlotModal'
 
 interface Company {
   id: string
@@ -19,20 +22,22 @@ interface Company {
 interface Farm {
   id: string
   name: string
-  location: string
-  area_hectares: number
+  address: string
+  total_area: number | null
   company_id: string
+  status: string
   created_at: string
 }
 
 interface User {
   id: string
+  username: string
   email: string
-  first_name: string
-  last_name: string
+  full_name: string
   phone: string | null
   role: 'admin_company' | 'admin_farm' | 'engineer'
   company_id: string
+  status: string
   created_at: string
 }
 
@@ -42,6 +47,10 @@ export default function CompanyDashboard() {
   const [farms, setFarms] = useState<Farm[]>([])
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
+  const [showCreateFarm, setShowCreateFarm] = useState(false)
+  const [showCreateUser, setShowCreateUser] = useState(false)
+  const [showCreatePlot, setShowCreatePlot] = useState(false)
+  const [selectedFarm, setSelectedFarm] = useState<Farm | null>(null)
   const router = useRouter()
 
   useEffect(() => {
@@ -96,6 +105,25 @@ export default function CompanyDashboard() {
     setLoading(false)
   }
 
+  const handleViewFarm = async (farm: Farm) => {
+    // Navighează către pagina de gestionare a fermei
+    router.push(`/farm-management?id=${farm.id}`)
+  }
+
+  const handleEditFarm = (farm: Farm) => {
+    // Navighează către pagina de gestionare a fermei pentru editare
+    router.push(`/farm-management?id=${farm.id}&edit=true`)
+  }
+
+  const calculateFarmArea = (farm: Farm) => {
+    if (farm.total_area) {
+      return farm.total_area
+    }
+    
+    // TODO: Calculează din parcele când avem datele
+    return 0
+  }
+
   const handleLogout = async () => {
     await supabase.auth.signOut()
     router.push('/login')
@@ -128,8 +156,15 @@ export default function CompanyDashboard() {
             </div>
             <div className="flex items-center space-x-4">
               <span className="text-sm text-gray-600">
-                {user?.first_name} {user?.last_name} - Admin Companie
+                {user?.full_name} - Admin Companie
               </span>
+              <button
+                onClick={() => router.push('/farms')}
+                className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors flex items-center space-x-2"
+              >
+                <span>🌾</span>
+                <span>Gestionare Ferme</span>
+              </button>
               <button
                 onClick={handleLogout}
                 className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors"
@@ -176,7 +211,7 @@ export default function CompanyDashboard() {
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Total Hectare</p>
                 <p className="text-2xl font-semibold text-gray-900">
-                  {farms.reduce((sum, farm) => sum + farm.area_hectares, 0).toFixed(1)}
+                  {farms.reduce((sum, farm) => sum + (farm.total_area || 0), 0).toFixed(1)}
                 </p>
               </div>
             </div>
@@ -197,11 +232,17 @@ export default function CompanyDashboard() {
 
         {/* Action Buttons */}
         <div className="flex space-x-4 mb-8">
-          <button className="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition-colors flex items-center">
+          <button 
+            onClick={() => setShowCreateFarm(true)}
+            className="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition-colors flex items-center"
+          >
             <span className="mr-2">🚜</span>
             Adaugă Fermă
           </button>
-          <button className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors flex items-center">
+          <button 
+            onClick={() => setShowCreateUser(true)}
+            className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors flex items-center"
+          >
             <span className="mr-2">👤</span>
             Adaugă Utilizator
           </button>
@@ -221,19 +262,47 @@ export default function CompanyDashboard() {
             {farms.length > 0 ? (
               <div className="divide-y divide-gray-200">
                 {farms.map((farm) => (
-                  <div key={farm.id} className="p-6 hover:bg-gray-50 cursor-pointer">
+                  <div 
+                    key={farm.id} 
+                    className="p-6 hover:bg-gray-50 cursor-pointer transition-colors"
+                    onClick={() => router.push(`/farm-management?id=${farm.id}`)}
+                  >
                     <div className="flex items-center justify-between">
                       <div>
                         <h3 className="text-lg font-medium text-gray-900">{farm.name}</h3>
-                        <p className="text-sm text-gray-500">{farm.location}</p>
-                        <p className="text-sm text-gray-600">{farm.area_hectares} hectare</p>
+                        <p className="text-sm text-gray-500">{farm.address}</p>
+                        <p className="text-sm text-gray-600">
+                          {farm.total_area ? `${farm.total_area} hectare` : 'Suprafața se va calcula din parcele'}
+                        </p>
                       </div>
                       <div className="flex items-center space-x-2">
-                        <button className="text-blue-600 hover:text-blue-800 px-3 py-1 text-sm rounded">
-                          Vizualizează
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setSelectedFarm(farm)
+                            setShowCreatePlot(true)
+                          }}
+                          className="text-green-600 hover:text-green-800 px-3 py-1 text-sm rounded bg-green-50 hover:bg-green-100 transition-colors"
+                        >
+                          + Parcelă
                         </button>
-                        <button className="text-gray-600 hover:text-gray-800 px-3 py-1 text-sm rounded">
-                          Editează
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleViewFarm(farm)
+                          }}
+                          className="text-blue-600 hover:text-blue-800 px-3 py-1 text-sm rounded bg-blue-50 hover:bg-blue-100 transition-colors"
+                        >
+                          👁️ Vizualizează
+                        </button>
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleEditFarm(farm)
+                          }}
+                          className="text-orange-600 hover:text-orange-800 px-3 py-1 text-sm rounded bg-orange-50 hover:bg-orange-100 transition-colors"
+                        >
+                          ✏️ Editează
                         </button>
                       </div>
                     </div>
@@ -247,7 +316,10 @@ export default function CompanyDashboard() {
                 <p className="text-gray-500 mb-6">
                   Compania ta nu are încă ferme înregistrate.
                 </p>
-                <button className="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition-colors">
+                <button 
+                  onClick={() => setShowCreateFarm(true)}
+                  className="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition-colors"
+                >
                   Adaugă Prima Fermă
                 </button>
               </div>
@@ -267,7 +339,7 @@ export default function CompanyDashboard() {
                     <div className="flex items-center justify-between">
                       <div>
                         <h3 className="text-sm font-medium text-gray-900">
-                          {user.first_name} {user.last_name}
+                          {user.full_name}
                         </h3>
                         <p className="text-sm text-gray-500">{user.email}</p>
                         <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full mt-1 ${
@@ -294,7 +366,10 @@ export default function CompanyDashboard() {
                 <p className="text-gray-500 mb-6">
                   Nu ai încă utilizatori în echipa ta.
                 </p>
-                <button className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors">
+                <button 
+                  onClick={() => setShowCreateUser(true)}
+                  className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors"
+                >
                   Adaugă Primul Utilizator
                 </button>
               </div>
@@ -302,6 +377,42 @@ export default function CompanyDashboard() {
           </div>
         </div>
       </div>
+
+      {/* Modals */}
+      <CreateFarmModal 
+        isOpen={showCreateFarm}
+        companyId={company?.id || ''}
+        onClose={() => setShowCreateFarm(false)}
+        onSuccess={() => {
+          loadDashboardData(company?.id || '')
+          setShowCreateFarm(false)
+        }}
+      />
+
+      <CreateCompanyUserModalV2 
+        isOpen={showCreateUser}
+        companyId={company?.id || ''}
+        onClose={() => setShowCreateUser(false)}
+        onSuccess={() => {
+          loadDashboardData(company?.id || '')
+          setShowCreateUser(false)
+        }}
+      />
+
+      <CreatePlotModal 
+        isOpen={showCreatePlot}
+        farmId={selectedFarm?.id || ''}
+        farmName={selectedFarm?.name || ''}
+        onClose={() => {
+          setShowCreatePlot(false)
+          setSelectedFarm(null)
+        }}
+        onSuccess={() => {
+          loadDashboardData(company?.id || '')
+          setShowCreatePlot(false)
+          setSelectedFarm(null)
+        }}
+      />
     </div>
   )
 }

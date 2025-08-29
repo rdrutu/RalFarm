@@ -172,6 +172,13 @@ export default function AdminPanel() {
             <div className="flex items-center space-x-4">
               <span className="text-sm text-gray-600">Super Admin: {user?.email}</span>
               <button
+                onClick={() => router.push('/farms')}
+                className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors flex items-center space-x-2"
+              >
+                <span>🌾</span>
+                <span>Gestionare Ferme</span>
+              </button>
+              <button
                 onClick={handleLogout}
                 className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors"
               >
