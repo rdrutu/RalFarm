@@ -18,7 +18,11 @@ interface Plot {
 interface CampaignPlot {
   plot_id: string;
   planted_area_ha: number;
-  plot?: Plot;
+  plot?: {
+    id: string;
+    name: string;
+    calculated_area: number;
+  };
 }
 
 interface CreateActivityModalProps {
@@ -400,8 +404,13 @@ export default function CreateActivityModal({
                 ) : (
                   <div className="space-y-3">
                     {campaignPlots.map(cp => {
-                      const plot = cp.plot as any;
+                      const plot = cp.plot;
                       const isSelected = selectedPlots.includes(cp.plot_id);
+                      
+                      // Verificăm dacă plot există
+                      if (!plot) {
+                        return null;
+                      }
                       
                       return (
                         <div key={cp.plot_id} className="flex items-center space-x-4 p-3 border border-gray-200 rounded">
@@ -420,7 +429,7 @@ export default function CreateActivityModal({
                           </div>
                         </div>
                       );
-                    })}
+                    }).filter(Boolean)}
                   </div>
                 )}
               </div>

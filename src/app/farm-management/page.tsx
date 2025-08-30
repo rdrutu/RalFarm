@@ -337,6 +337,52 @@ export default function FarmManagement() {
     return campaigns.filter(campaign => campaign.status === status)
   }
 
+  const getCampaignStatusLabel = (status: string) => {
+    const statusMap: { [key: string]: string } = {
+      'planned': 'Planificată',
+      'planted': 'Plantată',
+      'growing': 'În Creștere',
+      'ready_harvest': 'Gata Recoltare',
+      'harvested': 'Recoltată',
+      'completed': 'Completată',
+      'failed': 'Eșuată'
+    }
+    return statusMap[status] || status
+  }
+
+  const getActivityStatusLabel = (status: string) => {
+    const statusMap: { [key: string]: string } = {
+      'planned': 'Planificată',
+      'in_progress': 'În progres',
+      'completed': 'Completată',
+      'cancelled': 'Anulată'
+    }
+    return statusMap[status] || status
+  }
+
+  const getCampaignStatusColor = (status: string) => {
+    const colorMap: { [key: string]: string } = {
+      'planned': 'bg-blue-100 text-blue-800',
+      'planted': 'bg-green-100 text-green-800',
+      'growing': 'bg-yellow-100 text-yellow-800',
+      'ready_harvest': 'bg-orange-100 text-orange-800',
+      'harvested': 'bg-purple-100 text-purple-800',
+      'completed': 'bg-gray-100 text-gray-800',
+      'failed': 'bg-red-100 text-red-800'
+    }
+    return colorMap[status] || 'bg-red-100 text-red-800'
+  }
+
+  const getActivityStatusColor = (status: string) => {
+    const colorMap: { [key: string]: string } = {
+      'planned': 'bg-blue-100 text-blue-800',
+      'in_progress': 'bg-yellow-100 text-yellow-800',
+      'completed': 'bg-green-100 text-green-800',
+      'cancelled': 'bg-red-100 text-red-800'
+    }
+    return colorMap[status] || 'bg-gray-100 text-gray-800'
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -746,22 +792,8 @@ export default function FarmManagement() {
                     <div key={campaign.id} className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
                       <div className="flex justify-between items-start mb-4">
                         <h3 className="text-lg font-semibold text-gray-900">{campaign.name}</h3>
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                          campaign.status === 'planned' ? 'bg-blue-100 text-blue-800' :
-                          campaign.status === 'planted' ? 'bg-green-100 text-green-800' :
-                          campaign.status === 'growing' ? 'bg-yellow-100 text-yellow-800' :
-                          campaign.status === 'ready_harvest' ? 'bg-orange-100 text-orange-800' :
-                          campaign.status === 'harvested' ? 'bg-purple-100 text-purple-800' :
-                          campaign.status === 'completed' ? 'bg-gray-100 text-gray-800' :
-                          'bg-red-100 text-red-800'
-                        }`}>
-                          {campaign.status === 'planned' ? 'Planificată' :
-                           campaign.status === 'planted' ? 'Plantată' :
-                           campaign.status === 'growing' ? 'În Creștere' :
-                           campaign.status === 'ready_harvest' ? 'Gata Recoltare' :
-                           campaign.status === 'harvested' ? 'Recoltată' :
-                           campaign.status === 'completed' ? 'Completată' :
-                           campaign.status === 'failed' ? 'Eșuată' : campaign.status}
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getCampaignStatusColor(campaign.status)}`}>
+                          {getCampaignStatusLabel(campaign.status)}
                         </span>
                       </div>
 
@@ -962,17 +994,8 @@ export default function FarmManagement() {
                         <div className="flex-1">
                           <div className="flex items-center space-x-3 mb-2">
                             <h3 className="text-lg font-semibold text-gray-900">{activity.name}</h3>
-                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                              activity.status === 'planned' ? 'bg-blue-100 text-blue-800' :
-                              activity.status === 'in_progress' ? 'bg-yellow-100 text-yellow-800' :
-                              activity.status === 'completed' ? 'bg-green-100 text-green-800' :
-                              activity.status === 'cancelled' ? 'bg-red-100 text-red-800' :
-                              'bg-gray-100 text-gray-800'
-                            }`}>
-                              {activity.status === 'planned' ? 'Planificată' :
-                               activity.status === 'in_progress' ? 'În progres' :
-                               activity.status === 'completed' ? 'Completată' :
-                               activity.status === 'cancelled' ? 'Anulată' : activity.status}
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${getActivityStatusColor(activity.status)}`}>
+                              {getActivityStatusLabel(activity.status)}
                             </span>
                           </div>
                           
