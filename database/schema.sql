@@ -168,6 +168,203 @@ CREATE TABLE cultivation_campaigns (
 );
 
 -- =====================================================
+-- 5.1. ACTIVITĂȚI CAMPANII & PRODUSE AGRICOLE
+-- =====================================================
+
+-- Tipuri de activități agricole
+CREATE TYPE activity_type AS ENUM (
+    'soil_preparation',    -- Pregătire teren
+    'planting',           -- Semănat/plantat
+    'fertilizing',        -- Fertilizare
+    'spraying',           -- Stropit pesticide/erbicide/fungicide/insecticide
+    'irrigation',         -- Irigare
+    'weeding',           -- Plivit
+    'harvesting',        -- Recoltare
+    'field_inspection',   -- Inspecție câmp
+    'maintenance',       -- Întreținere
+    'other'              -- Alte activități
+);
+
+-- Status activități
+CREATE TYPE activity_status AS ENUM (
+    'planned',           -- Planificată
+    'in_progress',       -- În progres
+    'completed',         -- Finalizată
+    'overdue',          -- Întârziată
+    'cancelled'         -- Anulată
+);
+
+-- Produse agricole (fertilizatori, pesticide, semințe, etc.)
+CREATE TABLE agricultural_products (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name VARCHAR(255) NOT NULL, -- Urea 46%, Roundup, Karate Zeon, etc.
+    category VARCHAR(100) NOT NULL, -- fertilizer, herbicide, insecticide, fungicide, seed
+    active_substance VARCHAR(255), -- NPK 20-20-20, Glyfosat, Lambda-cyhalothrin
+    concentration VARCHAR(100), -- 46%, 360 g/l, 50 g/l
+    unit VARCHAR(50) NOT NULL, -- kg, l, g
+    
+    -- Informații aplicare
+    recommended_dose_per_ha DECIMAL(8,2), -- doza recomandată per hectar
+    application_method VARCHAR(255), -- pulverizare foliară, încorporare în sol
+    
+    -- Informații comerciale
+    manufacturer VARCHAR(255),
+    registration_number VARCHAR(100), -- numărul de înregistrare fitosanitar
+    
+    -- Restricții și siguranță
+    withdrawal_period_days INTEGER, -- perioada de carentă în zile
+    safety_notes TEXT,
+    
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Activități pentru campanii
+CREATE TABLE campaign_activities (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    campaign_id UUID REFERENCES cultivation_campaigns(id) ON DELETE CASCADE,
+    
+    -- Tipul și statusul activității
+    activity_type activity_type NOT NULL,
+    status activity_status DEFAULT 'planned',
+    
+    -- Planificare și execuție
+    planned_date DATE NOT NULL,
+    planned_start_time TIME,
+    planned_end_time TIME,
+    completed_date DATE,
+    completed_start_time TIME,
+    completed_end_time TIME,
+    
+    -- Detalii activitate
+    name VARCHAR(255) NOT NULL, -- Fertilizare Porumb 2025, Erbicidare Post-emergență
+    description TEXT,
+    priority INTEGER DEFAULT 3, -- 1=urgent, 2=high, 3=normal, 4=low, 5=very_low
+    
+    -- Resurse necesare
+    required_equipment TEXT, -- Tractoare, pulverizatoare, semănătoare, etc.
+    estimated_duration_hours DECIMAL(5,2),
+    
+    -- Costuri estimate și reale
+    estimated_cost_ron DECIMAL(10,2),
+    actual_cost_ron DECIMAL(10,2),
+    
+    -- Condiții și observații
+    weather_requirements TEXT, -- Fără ploaie, temperatura min, etc.
+    weather_conditions_actual TEXT,
+    completion_notes TEXT,
+    
+    -- Responsabil și echipă
+    assigned_to_user_id UUID REFERENCES users(id),
+    team_members TEXT, -- JSON array cu membrii echipei
+    
+    -- Notificări
+    send_reminder BOOLEAN DEFAULT true,
+    reminder_days_before INTEGER DEFAULT 1,
+    notification_sent BOOLEAN DEFAULT false,
+    
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    created_by UUID REFERENCES users(id)
+);
+
+-- Produse folosite în activități (many-to-many cu cantități și prețuri)
+CREATE TABLE activity_products (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    activity_id UUID REFERENCES campaign_activities(id) ON DELETE CASCADE,
+    product_id UUID REFERENCES agricultural_products(id) ON DELETE RESTRICT,
+    
+    -- Cantități planificate
+    planned_quantity_per_ha DECIMAL(10,4) NOT NULL, -- kg/ha sau l/ha
+    planned_total_quantity DECIMAL(12,4), -- calculat automat: planned_quantity_per_ha × hectare campanie
+    
+    -- Cantități reale folosite
+    actual_quantity_per_ha DECIMAL(10,4),
+    actual_total_quantity DECIMAL(12,4),
+    
+    -- Prețuri și costuri
+    unit_price_ron DECIMAL(10,4) NOT NULL, -- preț per kg sau litru
+    planned_total_cost_ron DECIMAL(12,2), -- calculat automat
+    actual_total_cost_ron DECIMAL(12,2),
+    
+    -- Detalii aplicare
+    application_method VARCHAR(255), -- cum s-a aplicat produsul
+    dilution_ratio VARCHAR(100), -- raportul de diluare (ex: 1:100)
+    
+    -- Documente și referințe
+    supplier VARCHAR(255),
+    invoice_number VARCHAR(100),
+    batch_number VARCHAR(100), -- lot produs pentru traceabilitate
+    
+    notes TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Indexuri pentru performanță activități
+CREATE INDEX idx_campaign_activities_campaign_id ON campaign_activities(campaign_id);
+CREATE INDEX idx_campaign_activities_status ON campaign_activities(status);
+CREATE INDEX idx_campaign_activities_planned_date ON campaign_activities(planned_date);
+CREATE INDEX idx_campaign_activities_assigned_to ON campaign_activities(assigned_to_user_id);
+CREATE INDEX idx_campaign_activities_activity_type ON campaign_activities(activity_type);
+
+CREATE INDEX idx_activity_products_activity_id ON activity_products(activity_id);
+CREATE INDEX idx_activity_products_product_id ON activity_products(product_id);
+
+CREATE INDEX idx_agricultural_products_category ON agricultural_products(category);
+CREATE INDEX idx_agricultural_products_active ON agricultural_products(is_active);
+
+-- Trigger pentru actualizarea automată a statusului activităților
+CREATE OR REPLACE FUNCTION update_activity_status()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- Marchează ca întârziată dacă data planificată a trecut și nu e completată
+    IF NEW.status = 'planned' AND NEW.planned_date < CURRENT_DATE THEN
+        NEW.status = 'overdue';
+    END IF;
+    
+    -- Actualizează updated_at
+    NEW.updated_at = NOW();
+    
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER update_campaign_activities_status 
+    BEFORE UPDATE ON campaign_activities
+    FOR EACH ROW EXECUTE FUNCTION update_activity_status();
+
+-- Trigger pentru calculul automat al cantităților și costurilor în activity_products
+CREATE OR REPLACE FUNCTION calculate_activity_product_totals()
+RETURNS TRIGGER AS $$
+DECLARE
+    campaign_total_area DECIMAL(10,4);
+BEGIN
+    -- Obține suprafața totală a campaniei
+    SELECT planted_area INTO campaign_total_area
+    FROM cultivation_campaigns cc
+    JOIN campaign_activities ca ON cc.id = ca.campaign_id
+    WHERE ca.id = NEW.activity_id;
+    
+    -- Calculează cantitatea totală planificată
+    IF NEW.planned_quantity_per_ha IS NOT NULL AND campaign_total_area IS NOT NULL THEN
+        NEW.planned_total_quantity = NEW.planned_quantity_per_ha * campaign_total_area;
+        NEW.planned_total_cost_ron = NEW.planned_total_quantity * NEW.unit_price_ron;
+    END IF;
+    
+    -- Calculează costul total real
+    IF NEW.actual_total_quantity IS NOT NULL THEN
+        NEW.actual_total_cost_ron = NEW.actual_total_quantity * NEW.unit_price_ron;
+    END IF;
+    
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER calculate_activity_product_totals_trigger
+    BEFORE INSERT OR UPDATE ON activity_products
+    FOR EACH ROW EXECUTE FUNCTION calculate_activity_product_totals();
+
+-- =====================================================
 -- 6. GESTIUNEA STOCURILOR
 -- =====================================================
 

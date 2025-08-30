@@ -5,22 +5,59 @@
   --foreground: #171717;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
+/* Force light mode - disable dark mode auto-detection */
+/* @media (prefers-color-scheme: dark) {
   :root {
     --background: #0a0a0a;
     --foreground: #ededed;
   }
-}
+} */
 
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Global fix: Ensure all white backgrounds have dark text */
+.bg-white, 
+[class*="bg-white"] {
+  color: #374151 !important; /* gray-700 */
+}
+
+/* Make sure headings are dark */
+h1, h2, h3, h4, h5, h6 {
+  color: #111827 !important; /* gray-900 */
+}
+
+/* Ensure text inputs have dark text */
+input, textarea, select {
+  color: #374151 !important; /* gray-700 */
+  background-color: #ffffff !important;
+}
+
+/* Fix specific elements that might have text visibility issues */
+.bg-white div,
+.bg-white span,
+.bg-white p,
+.bg-white label,
+.bg-white td,
+.bg-white th {
+  color: #374151 !important;
+}
+
+/* Buttons should maintain their intended colors */
+button.bg-white {
+  color: #374151 !important;
+}
+
+/* Exception for buttons with explicit color classes */
+.text-white {
+  color: #ffffff !important;
+}
+
+/* Fix dropdown and modal content */
+.modal-content,
+.dropdown-content {
+  color: #374151 !important;
 }

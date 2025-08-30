@@ -16,6 +16,8 @@ const createCampaignSchema = z.object({
   status: z.enum(['planned', 'planted', 'growing', 'ready_harvest', 'harvested', 'completed', 'failed']).optional()
 })
 
+const updateCampaignSchema = createCampaignSchema.partial()
+
 // GET /api/campaigns - Lista campanii
 export const GET = withAuth(async (req) => {
   const { user } = req
@@ -103,7 +105,6 @@ export const GET = withAuth(async (req) => {
     })
 
     return NextResponse.json(campaignsWithStats)
-
   } catch (error) {
     console.error('Eroare GET campaigns:', error)
     return NextResponse.json(
@@ -150,38 +151,43 @@ export const POST = withAuth(async (req) => {
       )
     }
 
+    // Verifică că nu există deja o campanie activă pe parcela respectivă
+    const { data: existingCampaign } = await supabase
+      .from('cultivation_campaigns')
+      .select('id')
+      .eq('plot_id', validatedData.plot_id)
+      .in('status', ['planted', 'growing', 'ready_harvest'])
+      .single()
+
+    if (existingCampaign) {
+      return NextResponse.json(
+        { error: 'Există deja o campanie activă pe această parcelă' },
+        { status: 409 }
+      )
+    }
+
     const { data, error } = await supabase
       .from('cultivation_campaigns')
-      .insert([validatedData])
+      .insert(validatedData)
       .select(`
         *,
-        farms (
-          id,
-          name,
-          company_id
-        ),
-        plots (
-          id,
-          name,
-          calculated_area
-        ),
-        crop_types (
-          id,
-          name,
-          category
-        )
+        farms (name),
+        plots (name),
+        crop_types (name)
       `)
       .single()
 
     if (error) {
-      console.error('Error creating campaign:', error)
       return NextResponse.json(
         { error: 'Eroare la crearea campaniei' },
         { status: 500 }
       )
     }
 
-    return NextResponse.json(data, { status: 201 })
+    return NextResponse.json({ 
+      message: 'Campanie creată cu succes',
+      campaign: data 
+    }, { status: 201 })
 
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -197,4 +203,4 @@ export const POST = withAuth(async (req) => {
       { status: 500 }
     )
   }
-})
+}, ['super_admin', 'admin_company', 'admin_farm', 'engineer'])

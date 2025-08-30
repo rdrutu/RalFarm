@@ -23,7 +23,11 @@ export function withAuth(
       // Obține token-ul din header
       const token = req.headers.get('authorization')?.replace('Bearer ', '')
       
+      console.log('withAuth: Authorization header:', req.headers.get('authorization')?.substring(0, 50) + '...')
+      console.log('withAuth: Token present:', !!token)
+      
       if (!token) {
+        console.log('withAuth: No token provided')
         return NextResponse.json(
           { error: 'Token de autentificare lipsește' },
           { status: 401 }
@@ -33,7 +37,10 @@ export function withAuth(
       // Verifică token-ul cu Supabase
       const { data: { user }, error } = await supabase.auth.getUser(token)
       
+      console.log('withAuth: Supabase user:', user?.email, 'Error:', error?.message)
+      
       if (error || !user || !user.email) {
+        console.log('withAuth: Token invalid or user not found')
         return NextResponse.json(
           { error: 'Token invalid' },
           { status: 401 }
@@ -46,6 +53,8 @@ export function withAuth(
         .select('id, email, role, company_id, full_name, status')
         .eq('email', user.email)
         .single()
+
+      console.log('withAuth: User data from DB:', userData?.email, userData?.role)
 
       if (userError || !userData || userData.status !== 'active') {
         return NextResponse.json(
